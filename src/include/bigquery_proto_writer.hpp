@@ -85,6 +85,8 @@ private:
     size_t inflight_request_bytes = 0;
     int64_t next_request_offset = 0;
 
+    bool enable_inflight_request_windowing = true;
+
     unique_ptr<google::cloud::bigquery_storage_v1::BigQueryWriteClient> write_client;
     google::cloud::bigquery::storage::v1::WriteStream write_stream;
     std::unique_ptr<google::cloud::AsyncStreamingReadWriteRpc<google::cloud::bigquery::storage::v1::AppendRowsRequest,
