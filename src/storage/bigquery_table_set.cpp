@@ -20,6 +20,7 @@ BigqueryTableSet::BigqueryTableSet(BigquerySchemaEntry &schema) : BigqueryInSche
 }
 
 optional_ptr<CatalogEntry> BigqueryTableSet::CreateTable(ClientContext &context, BoundCreateTableInfo &info) {
+    BigqueryTransaction::CheckReadWrite(context, catalog, "create tables");
     auto &transaction = BigqueryTransaction::Get(context, catalog);
     auto &bq_catalog = dynamic_cast<BigqueryCatalog &>(catalog);
     auto bqclient = transaction.GetBigqueryClient();
@@ -59,6 +60,7 @@ unique_ptr<BigqueryTableInfo> BigqueryTableSet::GetTableInfo(ClientContext &cont
 }
 
 void BigqueryTableSet::AlterTable(ClientContext &context, AlterTableInfo &info) {
+    BigqueryTransaction::CheckReadWrite(context, catalog, "alter tables");
     auto &transaction = BigqueryTransaction::Get(context, catalog);
     auto &bq_catalog = dynamic_cast<BigqueryCatalog &>(catalog);
     auto bqclient = transaction.GetBigqueryClient();
