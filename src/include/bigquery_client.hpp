@@ -36,6 +36,8 @@ struct ListJobsParams {
     std::optional<std::string> parent_job_id;
 };
 
+enum class BigqueryDmlStatementType { UPDATE, DELETE };
+
 class BigqueryClient {
 public:
     explicit BigqueryClient(ClientContext &context, const BigqueryConfig &config);
@@ -80,6 +82,9 @@ public:
                                                             const string &location = "",
                                                             const bool &dry_run = false,
                                                             const vector<Value> &query_parameters = {});
+    idx_t ExecuteDmlQuery(const string &query,
+                          BigqueryDmlStatementType statement_type,
+                          const string &location = "");
     google::cloud::bigquery::v2::GetQueryResultsResponse GetQueryResults(
         const google::cloud::bigquery::v2::JobReference &job_ref,
         const string &page_token = "");
