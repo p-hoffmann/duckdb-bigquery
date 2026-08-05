@@ -142,24 +142,22 @@ BigqueryProtoWriter::BigqueryProtoWriter(BigqueryTableEntry *entry, const google
             // Fail immediately on non-retryable errors instead of retrying
             ThrowIfStorageWritePermissionDenied(table_string, "creating a write stream", status);
             if (status.code() == google::cloud::StatusCode::kUnauthenticated) {
-                throw IOException(
-                    "BigQuery Storage Write API authentication failed for %s.\n"
-                    "\n"
-                    "The provided credentials are invalid or have expired.\n"
-                    "  - For user credentials: gcloud auth application-default login\n"
-                    "  - For service accounts: verify your service account key is valid\n"
-                    "\n"
-                    "Error details: %s",
-                    table_string,
-                    status.message());
+                throw IOException("BigQuery Storage Write API authentication failed for %s.\n"
+                                  "\n"
+                                  "The provided credentials are invalid or have expired.\n"
+                                  "  - For user credentials: gcloud auth application-default login\n"
+                                  "  - For service accounts: verify your service account key is valid\n"
+                                  "\n"
+                                  "Error details: %s",
+                                  table_string,
+                                  status.message());
             }
             if (status.code() == google::cloud::StatusCode::kInvalidArgument) {
-                throw BinderException(
-                    "BigQuery Storage Write API invalid argument for %s.\n"
-                    "\n"
-                    "Error details: %s",
-                    table_string,
-                    status.message());
+                throw BinderException("BigQuery Storage Write API invalid argument for %s.\n"
+                                      "\n"
+                                      "Error details: %s",
+                                      table_string,
+                                      status.message());
             }
 
             // BigQuery REST table metadata can become visible before Storage Write accepts the table.
