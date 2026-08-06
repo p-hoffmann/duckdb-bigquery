@@ -23,7 +23,8 @@ static unique_ptr<Catalog> BigqueryAttach(optional_ptr<StorageExtensionInfo> sto
                                           const string &name,
                                           AttachInfo &info,
                                           AttachOptions &attach_options) {
-    if (!Settings::Get<EnableExternalAccessSetting>(context)) {
+    // Settings::Get<> only exists from DuckDB 1.5; this branch targets 1.4.4.
+    if (!DBConfig::GetConfig(context).options.enable_external_access) {
         throw PermissionException("Attaching BigQuery databases is disabled through configuration");
     }
 
