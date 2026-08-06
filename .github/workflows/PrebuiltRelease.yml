@@ -47,6 +47,10 @@ jobs:
       extra_toolchains: "parser_tools"
       save_cache: false
       reduced_ci_mode: "disabled"
+      # The suite talks to a live BigQuery project (BQ_TEST_PROJECT via
+      # GCS_SERVICE_ACCOUNT_KEY); this fork has no such credentials, so it can
+      # only produce binaries. Correctness stays with upstream's own pipeline.
+      skip_tests: true
 
   release:
     name: Publish release
