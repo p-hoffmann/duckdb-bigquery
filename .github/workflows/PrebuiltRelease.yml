@@ -1,0 +1,106 @@
+#
+# Publishes the Linux extension binaries as GitHub Release assets so downstream
+# images can download them instead of recompiling. The from-source build costs a
+# full vcpkg run (gRPC, protobuf, Arrow, google-cloud-cpp) per target platform,
+# with the arm64 pass emulated.
+#
+# The upstream community-extensions build for the 1.4 line resolves via the
+# `andium` ref and is disabled, so no published v1.4.4 artifact carries this
+# branch's write-path backport — hence releasing it from this fork.
+#
+name: Prebuilt extension release
+
+# Driven by a release/prebuilt-<tag> branch rather than a tag push or a commit on
+# main: MainDistributionPipeline builds on both of those, so either would kick off
+# a redundant all-arch matrix plus a deploy job this fork has no S3 credentials
+# for. Its build job skips ordinary branches, so this stays the only pipeline that
+# runs here. workflow_dispatch only becomes selectable once this file also lands on
+# the default branch.
+on:
+  push:
+    branches:
+      - "release/prebuilt-*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to publish the binaries under"
+        required: true
+        default: "v1.4.4-write-path.1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build extension binaries
+    # Same DuckDB version, vcpkg pin and toolchains as MainDistributionPipeline,
+    # narrowed to the two glibc Linux arches the consuming images actually run.
+    uses: ./.github/workflows/_extension_distribution.yml
+    secrets: inherit
+    with:
+      extension_name: bigquery
+      duckdb_version: v1.4.4
+      ci_tools_version: main
+      exclude_archs: "wasm_mvp;wasm_eh;wasm_threads;windows_amd64_mingw;windows_amd64;windows_arm64;osx_amd64;osx_arm64;linux_amd64_musl;linux_arm64_musl;"
+      vcpkg_commit: "ef7dbf94b9198bc58f45951adcf1f041fcbc5ea0"
+      extra_toolchains: "parser_tools"
+      save_cache: false
+      reduced_ci_mode: "disabled"
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      # _extension_distribution.yml uploads one artifact per arch, named
+      # <ext>-<duckdb_version>-extension-<duckdb_arch>, each containing a bare
+      # bigquery.duckdb_extension. Flatten to arch-suffixed asset names so a
+      # consumer can resolve one by substituting its target arch.
+      - name: Stage release assets
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          for arch in linux_amd64 linux_arm64; do
+            src="artifacts/bigquery-v1.4.4-extension-${arch}/bigquery.duckdb_extension"
+            if [ ! -f "$src" ]; then
+              echo "::error::expected build output missing: $src"
+              find artifacts -name '*.duckdb_extension' -print
+              exit 1
+            fi
+            cp "$src" "out/bigquery-${arch}.duckdb_extension"
+          done
+          ls -l out/
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISPATCH_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          # On a branch push the tag is the branch name minus the release/prebuilt- prefix.
+          TAG="${DISPATCH_TAG:-}"
+          if [ -z "$TAG" ]; then
+            TAG="${GITHUB_REF_NAME#release/prebuilt-}"
+          fi
+          if [ -z "$TAG" ] || [ "$TAG" = "$GITHUB_REF_NAME" ]; then
+            echo "::error::could not derive a release tag from ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+          echo "Publishing $TAG"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" out/*.duckdb_extension \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" out/*.duckdb_extension \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "$TAG" \
+              --notes "bigquery extension for DuckDB v1.4.4, built from \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA}."
+          fi
